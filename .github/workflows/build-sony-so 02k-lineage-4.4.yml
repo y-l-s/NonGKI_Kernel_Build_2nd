@@ -57,8 +57,8 @@ env:
 
   KERNELSU_METHOD: "shell" # shell, manual and only.
 
-  PATCHES_SOURCE: "author/source" # [your_name]/[your_patch] -> gooder123/NonGKI_Patcher
-  PATCHES_BRANCH: "branch" # [your_branch] -> main
+  PATCHES_SOURCE: "SukiSU-Ultra/SukiSU_patch"
+  PATCHES_BRANCH: "main"
 
   SUSFS_FOLDER_FIXED: "" # Fill in your patch prefix directory here. Leave it blank if there isn't one. -> your_folder
   SUSFS_PATCH_FIXED: "" # Fill in your patches here. If there are multiple patches, please separate them with a comma. Leave it blank if there isn't one. -> patch1,patch2
