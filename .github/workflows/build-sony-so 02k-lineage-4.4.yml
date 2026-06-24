@@ -129,10 +129,14 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # ========= 移到build-process之前！此时defconfig已加载，.config文件存在 =========
-      - name: Fix NR_CPUS Trace Compile Error
+      # ========== 修复CONFIG_NR_CPUS报错核心步骤 ==========
+      # 1. 先加载defconfig生成 .config 文件（解决文件不存在问题）
+      # 2. sed修改CPU核心上限为16
+      # 3. olddefconfig同步配置
+      - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
+          make ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make olddefconfig
 
