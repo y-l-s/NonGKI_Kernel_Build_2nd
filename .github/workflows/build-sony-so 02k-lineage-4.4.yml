@@ -119,6 +119,25 @@ jobs:
           # Only ${{ env.DEVICE_NAME }} use it.
           cd $GITHUB_WORKSPACE/device_kernel
           # Nothing
+      - name: 🪛 Extra Kernel Options
+        run: |
+          # Only ${{ env.DEVICE_NAME }} use it.
+          cd $GITHUB_WORKSPACE/device_kernel
+          # Nothing
+
+      # ==========【新增步骤：修复trace NR_CPUS编译报错】==========
+      - name: Fix NR_CPUS trace compile error
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          # 强制修改最大CPU核心数为16，适配4.4老内核trace模块
+          sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
+          # 同步更新内核配置头文件
+          make olddefconfig
+      # ========================================================
+
+      - name: 🧰 Patch Kernel of Re:Kernel
+        uses: ./.github/workflows/patch-rekernel
+
 
       - name: 🧰 Patch Kernel of Re:Kernel
         uses: ./.github/workflows/patch-rekernel
