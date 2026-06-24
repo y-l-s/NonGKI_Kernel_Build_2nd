@@ -8,13 +8,11 @@ env:
   # Device env
   DEVICE_NAME : "sony_xz1c"
   DEVICE_CODENAME : "so-02k"
-  # 真实设备defconfig文件名
   DEFCONFIG_NAME : "so02k_defconfig"
-  # 独立拆分CLANG_TRIPLE，解决构建脚本读取不到的核心问题
-  CLANG_TRIPLE: "aarch64-linux-android-"
 
-  CUSTOM_CMDS : ""
-  # 补齐ARCH=arm64，统一编译参数
+  # 关键修复：CLANG_TRIPLE放回CUSTOM_CMDS，构建脚本才能识别
+  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-android-"
+  # 全局编译参数，包含ARCH=arm64
   EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j4"
 
   KERNEL_SOURCE : "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
@@ -130,7 +128,7 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # 配置文件生成步骤，强制指定ARCH=arm64
+      # 生成配置并修改CPU核心数，强制ARM64架构
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
