@@ -10,10 +10,10 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # 关键修复：CLANG_TRIPLE放回CUSTOM_CMDS，构建脚本才能识别
-  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-android-"
-  # 全局编译参数，包含ARCH=arm64
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j4"
+  # 修复1：内核Makefile识别关键字 CLANG_TARGET_TRIPLE，同时保留旧CLANG_TRIPLE兼容构建脚本
+  CUSTOM_CMDS : "CLANG_TARGET_TRIPLE=aarch64-linux-android- CLANG_TRIPLE=aarch64-linux-android-"
+  # 全局编译参数：补充32位交叉编译、LLVM完整参数，内置屏蔽悬空指针警告
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
 
   KERNEL_SOURCE : "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
   KERNEL_BRANCH : "lineage-17.1"
@@ -128,10 +128,11 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # 生成配置并修改CPU核心数，强制ARM64架构
+      # 生成配置并修改CPU核心数，强制ARM64架构，补充CLANG_TARGET_TRIPLE环境变量导出
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
+          export CLANG_TARGET_TRIPLE=aarch64-linux-android-
           make ARCH=arm64 ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
