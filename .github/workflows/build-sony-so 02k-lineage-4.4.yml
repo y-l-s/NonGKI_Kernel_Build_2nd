@@ -120,13 +120,6 @@ jobs:
           cd $GITHUB_WORKSPACE/device_kernel
           # Nothing
 
-      # 新增：修复NR_CPUS tracepoint编译报错
-      - name: Fix NR_CPUS Trace Compile Error
-        run: |
-          cd $GITHUB_WORKSPACE/device_kernel
-          sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
-          make olddefconfig
-
       - name: 🧰 Patch Kernel of Re:Kernel
         uses: ./.github/workflows/patch-rekernel
 
@@ -135,6 +128,13 @@ jobs:
 
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
+
+      # ========= 移到build-process之前！此时defconfig已加载，.config文件存在 =========
+      - name: Fix NR_CPUS Trace Compile Error
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
+          make olddefconfig
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
