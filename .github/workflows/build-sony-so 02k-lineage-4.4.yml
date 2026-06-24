@@ -8,9 +8,11 @@ env:
   # Device env
   DEVICE_NAME : "sony_xz1c"
   DEVICE_CODENAME : "so-02k"
+  # 修复1：替换为该内核真实defconfig（sony msm8998 lineage17.1标准配置名）
+  DEFCONFIG_NAME : "so02k_defconfig"
 
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-android-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j4"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j4 ARCH=arm64"
 
   KERNEL_SOURCE : "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
   KERNEL_BRANCH : "lineage-17.1"
@@ -25,15 +27,14 @@ env:
   GCC_32_BRANCH : "android12L-release"
 
   DEFCONFIG_SOURCE: ""
-  DEFCONFIG_NAME : "codename_defconfig"
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
   KERNELSU_SOURCE : ""
   KERNELSU_BRANCH : ""
 
-  KERNELSU_AUTO_GET : "true" # if u want easy setting kernelsu, u can true.
-  KERNELSU_AUTO_FORK : "resukisu" # magic, rsuntk, next, resukisu and sukisu
+  KERNELSU_AUTO_GET : "true"
+  KERNELSU_AUTO_FORK : "resukisu"
 
   SUSFS_ENABLE : false
   SUSFS_FIXED : false
@@ -49,46 +50,45 @@ env:
   ROM_TEXT : "rom_android"
 
   # Other env
-  PYTHON_VERSION: "3" # Only 2(Ubuntu 22.04 and Ubuntu 20.04) or 3(Any OS Versions).
+  PYTHON_VERSION: "3"
 
-  PACK_METHOD: "Anykernel3" # Anykernel3 need SOURCE and BRANCH, MKBOOTIMG needn't it.
-  PACK_KMODULES: "false" # if u want pack kernel modules (.ko) into Anykernel3.
+  PACK_METHOD: "Anykernel3"
+  PACK_KMODULES: "false"
 
-  KERNELSU_METHOD: "shell" # shell, manual and only.
+  KERNELSU_METHOD: "shell"
 
   PATCHES_SOURCE: ""
   PATCHES_BRANCH: ""
 
-  SUSFS_FOLDER_FIXED: "" # Fill in your patch prefix directory here. Leave it blank if there isn't one. -> your_folder
-  SUSFS_PATCH_FIXED: "" # Fill in your patches here. If there are multiple patches, please separate them with a comma. Leave it blank if there isn't one. -> patch1,patch2
+  SUSFS_FOLDER_FIXED: ""
+  SUSFS_PATCH_FIXED: ""
 
-  REKERNEL_ENABLE: "true" # if u need Re:Kernel.
-  DROIDSPACES_ENABLE: "false" # if u need Droidspaces or LXC/Docker.
+  REKERNEL_ENABLE: "true"
+  DROIDSPACES_ENABLE: "false"
 
-  HOOK_METHOD: "syscall" # Manual hook method -> syscall.
+  HOOK_METHOD: "syscall"
 
-  KERNEL_PATCH: "false" # If your kernel version is <= 4.9, you have the option of enabling the patch to patch the kernel_write and kernel_read functions.
+  KERNEL_PATCH: "false"
 
-  KPM_ENABLE: "false" # Anyone devices.
-  KPM_INLINE: "false" # Only use it for SukiSU-Ultra.
-  KPM_KPATCH_NEXT: "false" # If u want hook KPatch-Next in build step.
-  KPM_PATCH_SOURCE: "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux" # If u want to use KPM Inline,so you need set patch exec file source -> raw.githubusercontent.com/Test/Test/patch .
+  KPM_ENABLE: "false"
+  KPM_INLINE: "false"
+  KPM_KPATCH_NEXT: "false"
+  KPM_PATCH_SOURCE: "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux"
 
-  BASEBAND_GUARD_ENABLE: "false" #if u want prevent unauthorized writes to critical partitions/device nodes.
-  BASEBAND_GUARD_BOOT: "false" #if u want to protect boot partition.
+  BASEBAND_GUARD_ENABLE: "false"
+  BASEBAND_GUARD_BOOT: "false"
 
-  GENERATE_DTB: "false" # if u kernel need DTB , but cannot auto generate it. (Only Anykernel3).
-  GENERATE_CHIP: "qcom" # only supported for qcom and mediatek.
+  GENERATE_DTB: "false"
+  GENERATE_CHIP: "qcom"
 
-  BUILD_DEBUGGER: "false" # Output build errors.
-  SKIP_PATCH: "false" # Ignore errors found in Patch Debugger.
+  BUILD_DEBUGGER: "false"
+  SKIP_PATCH: "false"
 
-  BUILD_OTHER_CONFIG: "false" # Merge config files.
+  BUILD_OTHER_CONFIG: "false"
   MERGE_CONFIG_FILES: "vendor/debugfs.config,vendor/lahaina_QGKI.config"
 
-  FREE_MORE_SPACE: "false" # if u want get more space, enabled it.
+  FREE_MORE_SPACE: "false"
 
-  # CCache 参数统一移入顶层env，删除job内重复env块
   CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
   CCACHE_NOHASHDIR: "true"
   CCACHE_HARDLINK: "true"
@@ -96,8 +96,7 @@ env:
 jobs:
   build-kernel:
     name: Build Kernel
-    runs-on: ubuntu-latest # u can changed to ubuntu 22.04, and need container set ubuntu-latest
-    # container: archlinux/archlinux:latest # if u need use arch linux -> archlinux/archlinux:latest or ubuntu 20.04 -> ubuntu:focal
+    runs-on: ubuntu-latest
     steps:
       - name: ⏰ Checkout repository
         uses: actions/checkout@v6
@@ -116,7 +115,6 @@ jobs:
 
       - name: 🪛 Extra Kernel Options
         run: |
-          # Only ${{ env.DEVICE_NAME }} use it.
           cd $GITHUB_WORKSPACE/device_kernel
           # Nothing
 
@@ -129,16 +127,13 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # ========== 修复CONFIG_NR_CPUS报错核心步骤 ==========
-      # 1. 先加载defconfig生成 .config 文件（解决文件不存在问题）
-      # 2. sed修改CPU核心上限为16
-      # 3. olddefconfig同步配置
+      # 修复2：make指定ARCH=arm64，使用真实defconfig名称
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          make ${{ env.DEFCONFIG_NAME }}
+          make ARCH=arm64 ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
-          make olddefconfig
+          make ARCH=arm64 olddefconfig
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
