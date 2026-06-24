@@ -9,25 +9,8 @@ env:
   DEVICE_NAME : "sony_xz1c"
   DEVICE_CODENAME : "so-02k"
 
-  # 【修改这里】把gnu改成android，匹配Android GCC4.9工具链
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-android-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
-
-  # 下面内容保持不变
-env:
-  # Device env
-  DEVICE_NAME : "sony_xz1c"
-  DEVICE_CODENAME : "so-02k"
-
-  # 【修改这里】把gnu改成android，匹配Android GCC4.9工具链
-  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-android-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
-
-  # 下面内容保持不变
-
-
-  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j4"
 
   KERNEL_SOURCE : "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
   KERNEL_BRANCH : "lineage-17.1"
@@ -35,13 +18,11 @@ env:
   CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
   CLANG_BRANCH : ""
 
-    # 【替换原有GCC_64_SOURCE、GCC_32_SOURCE】
   GCC_GNU : false
   GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
   GCC_64_BRANCH : "android12L-release"
   GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
   GCC_32_BRANCH : "android12L-release"
-
 
   DEFCONFIG_SOURCE: ""
   DEFCONFIG_NAME : "codename_defconfig"
@@ -107,16 +88,16 @@ env:
 
   FREE_MORE_SPACE: "false" # if u want get more space, enabled it.
 
+  # CCache 参数统一移入顶层env，删除job内重复env块
+  CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+  CCACHE_NOHASHDIR: "true"
+  CCACHE_HARDLINK: "true"
+
 jobs:
   build-kernel:
     name: Build Kernel
     runs-on: ubuntu-latest # u can changed to ubuntu 22.04, and need container set ubuntu-latest
     # container: archlinux/archlinux:latest # if u need use arch linux -> archlinux/archlinux:latest or ubuntu 20.04 -> ubuntu:focal
-    env:
-      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_HARDLINK: "true"
-
     steps:
       - name: ⏰ Checkout repository
         uses: actions/checkout@v6
@@ -138,25 +119,13 @@ jobs:
           # Only ${{ env.DEVICE_NAME }} use it.
           cd $GITHUB_WORKSPACE/device_kernel
           # Nothing
-      - name: 🪛 Extra Kernel Options
-        run: |
-          # Only ${{ env.DEVICE_NAME }} use it.
-          cd $GITHUB_WORKSPACE/device_kernel
-          # Nothing
 
-      # ==========【新增步骤：修复trace NR_CPUS编译报错】==========
-      - name: Fix NR_CPUS trace compile error
+      # 新增：修复NR_CPUS tracepoint编译报错
+      - name: Fix NR_CPUS Trace Compile Error
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          # 强制修改最大CPU核心数为16，适配4.4老内核trace模块
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
-          # 同步更新内核配置头文件
           make olddefconfig
-      # ========================================================
-
-      - name: 🧰 Patch Kernel of Re:Kernel
-        uses: ./.github/workflows/patch-rekernel
-
 
       - name: 🧰 Patch Kernel of Re:Kernel
         uses: ./.github/workflows/patch-rekernel
