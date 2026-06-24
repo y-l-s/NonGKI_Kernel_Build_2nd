@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # 内核编译必需三元组，独立拆分避免拼接失效
+  # 内核编译必需三元组
   CLANG_TARGET_TRIPLE: "aarch64-linux-android-"
   CLANG_TRIPLE: "aarch64-linux-android-"
 
@@ -124,25 +124,22 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # 写入全局环境变量，确保build-process子工作流继承CLANG三元组
+      # 生成内核配置文件
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          # 导出至全局环境，后续所有步骤/子工作流均可读取
-          echo "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }}" >> $GITHUB_ENV
-          echo "CLANG_TRIPLE=${{ env.CLANG_TRIPLE }}" >> $GITHUB_ENV
           make ARCH=arm64 ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
 
-      # 兼容兜底：二次强制注入三元组环境，彻底规避子工作流环境丢失问题
-      - name: Inject Clang Triple Env Before Build
-        run: |
-          echo "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }}" >> $GITHUB_ENV
-          echo "CLANG_TRIPLE=${{ env.CLANG_TRIPLE }}" >> $GITHUB_ENV
-
+      # 核心修改：向build-process子工作流传递编译三元组参数，子工作流内部可读取
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
+        with:
+          # 强制传入编译必需变量，子工作流内部使用
+          CLANG_TARGET_TRIPLE: ${{ env.CLANG_TARGET_TRIPLE }}
+          CLANG_TRIPLE: ${{ env.CLANG_TRIPLE }}
+          EXTRA_BUILD_ARGS: "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} ${{ env.EXTRA_CMDS }}"
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
