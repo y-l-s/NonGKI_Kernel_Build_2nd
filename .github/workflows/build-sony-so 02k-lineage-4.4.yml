@@ -9,6 +9,23 @@ env:
   DEVICE_NAME : "sony_xz1c"
   DEVICE_CODENAME : "so-02k"
 
+  # 【修改这里】把gnu改成android，匹配Android GCC4.9工具链
+  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-android-"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
+
+  # 下面内容保持不变
+env:
+  # Device env
+  DEVICE_NAME : "sony_xz1c"
+  DEVICE_CODENAME : "so-02k"
+
+  # 【修改这里】把gnu改成android，匹配Android GCC4.9工具链
+  CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-android-"
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
+
+  # 下面内容保持不变
+
+
   CUSTOM_CMDS : "CLANG_TRIPLE=aarch64-linux-gnu-"
   EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1"
 
@@ -18,11 +35,13 @@ env:
   CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
   CLANG_BRANCH : ""
 
-  GCC_GNU : true
-  GCC_64_SOURCE : "https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
-  GCC_64_BRANCH : ""
-  GCC_32_SOURCE : "https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
-  GCC_32_BRANCH : ""
+    # 【替换原有GCC_64_SOURCE、GCC_32_SOURCE】
+  GCC_GNU : false
+  GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
+  GCC_64_BRANCH : "android12L-release"
+  GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
+  GCC_32_BRANCH : "android12L-release"
+
 
   DEFCONFIG_SOURCE: ""
   DEFCONFIG_NAME : "codename_defconfig"
