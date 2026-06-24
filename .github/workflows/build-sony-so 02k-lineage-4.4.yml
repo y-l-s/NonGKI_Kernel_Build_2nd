@@ -135,6 +135,12 @@ jobs:
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
 
+      # 兼容兜底：二次强制注入三元组环境，彻底规避子工作流环境丢失问题
+      - name: Inject Clang Triple Env Before Build
+        run: |
+          echo "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }}" >> $GITHUB_ENV
+          echo "CLANG_TRIPLE=${{ env.CLANG_TRIPLE }}" >> $GITHUB_ENV
+
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
 
