@@ -10,12 +10,13 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # msm8998是arm64架构，恢复正确64位三元组
-  CLANG_TARGET_TRIPLE: "aarch64-linux-android-"
-  CLANG_TRIPLE: "aarch64-linux-android-"
+  # 修复核心：4.4老内核clang要求triple末尾不带横杠！！
+  # 原 aarch64-linux-android- 末尾'-'会触发内核Makefile校验失败
+  CLANG_TARGET_TRIPLE: "aarch64-linux-android"
+  CLANG_TRIPLE: "aarch64-linux-android"
 
-  # 恢复arm64编译参数，保留32位兼容交叉编译
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
+  # Clang编译参数：移除CROSS_COMPILE相关，仅保留LLVM编译标识
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
 
   # 内核源码与工具链
   KERNEL_SOURCE : "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
@@ -23,7 +24,7 @@ env:
   CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
   CLANG_BRANCH : ""
 
-  # GCC预编译工具链配置
+  # GCC预编译工具链配置：仅保留源码地址，不再全局导出CROSS_COMPILE路径（避免冲突）
   GCC_GNU : false
   GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
   GCC_64_BRANCH : "android12L-release"
@@ -124,7 +125,6 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # 生成内核配置文件：恢复ARCH=arm64，正确读取arch/arm64/configs下的defconfig
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -132,13 +132,17 @@ jobs:
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
 
-      # 使用env注入变量，修复CLANG_TRIPLE缺失报错+消除Unexpected input警告
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
         env:
+          # 1. 修正无尾横杠triple传给build-process脚本
           CLANG_TARGET_TRIPLE: ${{ env.CLANG_TARGET_TRIPLE }}
           CLANG_TRIPLE: ${{ env.CLANG_TRIPLE }}
+          # 2. 移除冲突的CROSS_COMPILE/CROSS_COMPILE_ARM32，只传递llvm编译参数
           EXTRA_BUILD_ARGS: "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} ${{ env.EXTRA_CMDS }}"
+          # 关键：清空gcc交叉编译变量，阻止build-process脚本导出冲突前缀
+          GCC_64: ""
+          GCC_32: ""
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
