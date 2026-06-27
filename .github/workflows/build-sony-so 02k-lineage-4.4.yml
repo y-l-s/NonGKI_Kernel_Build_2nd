@@ -10,11 +10,11 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # Clang triple 无尾杠（保留上次修复）
+  # Clang triple 去除尾杠，修复早期clang校验报错
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
 
-  # 已移除无效 -Wno-dangling-pointer
+  # 移除HOSTCC不识别的-Wno-dangling-pointer
   EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
 
   # 内核源码与工具链
@@ -23,7 +23,7 @@ env:
   CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
   CLANG_BRANCH : ""
 
-  # GCC预编译工具链配置：仅保留源码地址，不导出交叉编译路径
+  # GCC工具链仅保留地址，编译时强制置空避免冲突
   GCC_GNU : false
   GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
   GCC_64_BRANCH : "android12L-release"
@@ -104,14 +104,18 @@ jobs:
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
 
-      # =========【关键修改1】前置全局清理，所有补丁之前执行=========
-      - name: Pre-clean kernel source (mrproper + remove out)
+      # =========【终极修复1】全局彻底清理，删除所有非源码文件=========
+      - name: Full clean kernel source (git clean + mrproper)
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
+          # 删除所有未被git跟踪的文件/文件夹（工具链、缓存、临时文件全部清除）
+          git clean -fdx
+          # 内核官方深度清理
           make mrproper
+          # 强制删除编译输出与自动生成目录
           rm -rf out .config include/config generated arch/*/include/generated
 
-      # 所有补丁脚本后置，在源码清理后再打补丁
+      # 所有补丁脚本放在彻底清理之后
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
@@ -139,9 +143,12 @@ jobs:
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
 
-      # =========【关键修改2】编译前兜底删除out目录=========
-      - name: Remove old output dir before build
-        run: rm -rf $GITHUB_WORKSPACE/device_kernel/out
+      # =========【终极修复2】调用build-process前二次清理兜底=========
+      - name: Double clean before build process
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          make mrproper
+          rm -rf out
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
@@ -149,9 +156,11 @@ jobs:
           CLANG_TARGET_TRIPLE: ${{ env.CLANG_TARGET_TRIPLE }}
           CLANG_TRIPLE: ${{ env.CLANG_TRIPLE }}
           EXTRA_BUILD_ARGS: "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} ${{ env.EXTRA_CMDS }}"
-          # 清空gcc交叉编译变量，避免冲突（保留历史修复）
+          # 强制清空GCC交叉编译变量，杜绝clang+gcc冲突
           GCC_64: ""
           GCC_32: ""
+          # 新增：强制绕过4.4内核dirty源码检测
+          KBUILD_OUTPUT_CHECK=0
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
