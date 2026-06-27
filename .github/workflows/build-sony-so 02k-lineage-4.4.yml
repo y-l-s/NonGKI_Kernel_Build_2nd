@@ -10,12 +10,12 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # 安卓4.4 32位ARM内核编译三元组（修复内核Makefile缺失CLANG_TRIPLE报错）
-  CLANG_TARGET_TRIPLE: "arm-linux-androideabi-"
-  CLANG_TRIPLE: "arm-linux-androideabi-"
+  # msm8998是arm64架构，恢复正确64位三元组
+  CLANG_TARGET_TRIPLE: "aarch64-linux-android-"
+  CLANG_TRIPLE: "aarch64-linux-android-"
 
-  # 适配安卓4.4 32位ARM LLVM编译参数，移除64位相关配置
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm SUBARCH=arm CROSS_COMPILE=arm-linux-androideabi- KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
+  # 恢复arm64编译参数，保留32位兼容交叉编译
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi- KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
 
   # 内核源码与工具链
   KERNEL_SOURCE : "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
@@ -124,15 +124,15 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # 生成内核配置文件
+      # 生成内核配置文件：恢复ARCH=arm64，正确读取arch/arm64/configs下的defconfig
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          make ARCH=arm ${{ env.DEFCONFIG_NAME }}
+          make ARCH=arm64 ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
-          make ARCH=arm olddefconfig
+          make ARCH=arm64 olddefconfig
 
-      # 修复点：删除错误with传参，改用env注入环境变量，消除Unexpected input警告 + 内核读取到CLANG_TRIPLE
+      # 使用env注入变量，修复CLANG_TRIPLE缺失报错+消除Unexpected input警告
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
         env:
