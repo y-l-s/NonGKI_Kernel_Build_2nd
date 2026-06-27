@@ -14,7 +14,7 @@ env:
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
 
-  # 修复警告：删除 -Wno-dangling-pointer，HOSTCC不识别该参数
+  # 已移除无效 -Wno-dangling-pointer
   EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
 
   # 内核源码与工具链
@@ -104,6 +104,14 @@ jobs:
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
 
+      # =========【关键修改1】前置全局清理，所有补丁之前执行=========
+      - name: Pre-clean kernel source (mrproper + remove out)
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          make mrproper
+          rm -rf out .config include/config generated arch/*/include/generated
+
+      # 所有补丁脚本后置，在源码清理后再打补丁
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
@@ -124,14 +132,6 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # ==========新增关键步骤：清理源码目录，解决 not clean 报错==========
-      - name: Clean kernel source (make mrproper)
-        run: |
-          cd $GITHUB_WORKSPACE/device_kernel
-          # 彻底清理旧编译产物、临时文件
-          make mrproper
-          rm -rf out
-
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -139,13 +139,17 @@ jobs:
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
 
+      # =========【关键修改2】编译前兜底删除out目录=========
+      - name: Remove old output dir before build
+        run: rm -rf $GITHUB_WORKSPACE/device_kernel/out
+
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
         env:
           CLANG_TARGET_TRIPLE: ${{ env.CLANG_TARGET_TRIPLE }}
           CLANG_TRIPLE: ${{ env.CLANG_TRIPLE }}
           EXTRA_BUILD_ARGS: "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} ${{ env.EXTRA_CMDS }}"
-          # 清空gcc交叉编译变量，避免冲突（上次修复保留）
+          # 清空gcc交叉编译变量，避免冲突（保留历史修复）
           GCC_64: ""
           GCC_32: ""
 
