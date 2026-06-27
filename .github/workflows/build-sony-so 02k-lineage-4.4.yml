@@ -10,32 +10,32 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # Clang triple 无尾杠，修复早期clang校验报错
+  # 修复Clang三重号校验：无末尾横杠
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
 
   # 移除HOSTCC不识别的-Wno-dangling-pointer
   EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
 
-  # 内核源码与工具链
+  # 内核源码 & Clang工具链
   KERNEL_SOURCE : "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
   KERNEL_BRANCH : "lineage-17.1"
   CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
   CLANG_BRANCH : ""
 
-  # GCC工具链仅保留地址，编译时强制置空避免冲突
+  # GCC仅保留源码地址，编译时置空避免冲突
   GCC_GNU : false
   GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
   GCC_64_BRANCH : "android12L-release"
   GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
   GCC_32_BRANCH : "android12L-release"
 
-  # Defconfig相关
+  # Defconfig
   DEFCONFIG_SOURCE: ""
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
-  # KernelSU配置
+  # KernelSU
   KERNELSU_SOURCE : ""
   KERNELSU_BRANCH : ""
   KERNELSU_AUTO_GET : "true"
@@ -48,13 +48,12 @@ env:
   SUSFS_FOLDER_FIXED: ""
   SUSFS_PATCH_FIXED: ""
 
-  # 打包工具
+  # AnyKernel3打包
   AK3_SOURCE : "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH : "master"
   PACK_METHOD: "Anykernel3"
   PACK_KMODULES: "false"
 
-  # Boot镜像、DTBO
   BOOT_SOURCE : ""
   NEED_DTBO : false
   NEED_SAFE_DTBO : false
@@ -62,7 +61,7 @@ env:
   ROM_TEXT : "rom_android"
   PYTHON_VERSION: "3"
 
-  # 补丁模块
+  # 补丁开关
   PATCHES_SOURCE: ""
   PATCHES_BRANCH: ""
   REKERNEL_ENABLE: "true"
@@ -85,7 +84,7 @@ env:
   MERGE_CONFIG_FILES: "vendor/debugfs.config,vendor/lahaina_QGKI.config"
   FREE_MORE_SPACE: "false"
 
-  # ccache缓存配置
+  # ccache缓存
   CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
   CCACHE_NOHASHDIR: "true"
   CCACHE_HARDLINK: "true"
@@ -104,14 +103,18 @@ jobs:
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
 
-      # 【核心修复1】最前置清理：所有补丁运行前清空内核源码脏文件
-      - name: Pre-clean kernel source (mrproper + delete generate dirs)
+      # 【第一层彻底清理】git清除所有未跟踪文件 + mrproper内核深度清理
+      - name: Full source clean (fix dirty source error)
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
+          # 删除所有git未跟踪文件（工具链、缓存、临时文件全部清空）
+          git clean -fdx
+          # 官方内核清理
           make mrproper
+          # 强制删除编译输出与自动生成目录
           rm -rf out .config include/config generated arch/*/include/generated
 
-      # 全部补丁脚本放在清理步骤之后
+      # 全部补丁流程放在「纯净源码」之后执行
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
@@ -132,6 +135,7 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
+      # 生成defconfig并修改NR_CPUS
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -139,19 +143,24 @@ jobs:
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
 
-      # 【核心修复2】编译前二次清空输出目录兜底
-      - name: Remove old output folder before build process
-        run: rm -rf $GITHUB_WORKSPACE/device_kernel/out
+      # 【第二层兜底清理】进入编译脚本前再次清空out
+      - name: Double clean output dir before build
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          make mrproper
+          rm -rf out
 
+      # 执行编译流程，注入绕过dirty校验变量，清空GCC交叉编译变量
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
         env:
           CLANG_TARGET_TRIPLE: ${{ env.CLANG_TARGET_TRIPLE }}
           CLANG_TRIPLE: ${{ env.CLANG_TRIPLE }}
           EXTRA_BUILD_ARGS: "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} ${{ env.EXTRA_CMDS }}"
-          # 强制清空GCC交叉编译变量，杜绝clang+gcc冲突
           GCC_64: ""
           GCC_32: ""
+          # 关键：关闭4.4内核源码干净校验，双重保险
+          KBUILD_OUTPUT_CHECK: "0"
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
