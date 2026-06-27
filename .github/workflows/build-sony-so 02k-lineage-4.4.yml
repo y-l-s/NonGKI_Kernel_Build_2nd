@@ -10,13 +10,12 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # 修复核心：4.4老内核clang要求triple末尾不带横杠！！
-  # 原 aarch64-linux-android- 末尾'-'会触发内核Makefile校验失败
+  # Clang triple 无尾杠（保留上次修复）
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
 
-  # Clang编译参数：移除CROSS_COMPILE相关，仅保留LLVM编译标识
-  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-dangling-pointer -Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
+  # 修复警告：删除 -Wno-dangling-pointer，HOSTCC不识别该参数
+  EXTRA_CMDS : "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
 
   # 内核源码与工具链
   KERNEL_SOURCE : "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
@@ -24,7 +23,7 @@ env:
   CLANG_SOURCE : "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
   CLANG_BRANCH : ""
 
-  # GCC预编译工具链配置：仅保留源码地址，不再全局导出CROSS_COMPILE路径（避免冲突）
+  # GCC预编译工具链配置：仅保留源码地址，不导出交叉编译路径
   GCC_GNU : false
   GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
   GCC_64_BRANCH : "android12L-release"
@@ -125,6 +124,14 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
+      # ==========新增关键步骤：清理源码目录，解决 not clean 报错==========
+      - name: Clean kernel source (make mrproper)
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          # 彻底清理旧编译产物、临时文件
+          make mrproper
+          rm -rf out
+
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -135,12 +142,10 @@ jobs:
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
         env:
-          # 1. 修正无尾横杠triple传给build-process脚本
           CLANG_TARGET_TRIPLE: ${{ env.CLANG_TARGET_TRIPLE }}
           CLANG_TRIPLE: ${{ env.CLANG_TRIPLE }}
-          # 2. 移除冲突的CROSS_COMPILE/CROSS_COMPILE_ARM32，只传递llvm编译参数
           EXTRA_BUILD_ARGS: "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} ${{ env.EXTRA_CMDS }}"
-          # 关键：清空gcc交叉编译变量，阻止build-process脚本导出冲突前缀
+          # 清空gcc交叉编译变量，避免冲突（上次修复保留）
           GCC_64: ""
           GCC_32: ""
 
