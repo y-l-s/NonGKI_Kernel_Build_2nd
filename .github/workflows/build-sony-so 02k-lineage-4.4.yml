@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # Clang triple 去除尾杠，修复早期clang校验报错
+  # Clang triple 无尾杠，修复早期clang校验报错
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
 
@@ -104,18 +104,14 @@ jobs:
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
 
-      # =========【终极修复1】全局彻底清理，删除所有非源码文件=========
-      - name: Full clean kernel source (git clean + mrproper)
+      # 【核心修复1】最前置清理：所有补丁运行前清空内核源码脏文件
+      - name: Pre-clean kernel source (mrproper + delete generate dirs)
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          # 删除所有未被git跟踪的文件/文件夹（工具链、缓存、临时文件全部清除）
-          git clean -fdx
-          # 内核官方深度清理
           make mrproper
-          # 强制删除编译输出与自动生成目录
           rm -rf out .config include/config generated arch/*/include/generated
 
-      # 所有补丁脚本放在彻底清理之后
+      # 全部补丁脚本放在清理步骤之后
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
@@ -143,12 +139,9 @@ jobs:
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
 
-      # =========【终极修复2】调用build-process前二次清理兜底=========
-      - name: Double clean before build process
-        run: |
-          cd $GITHUB_WORKSPACE/device_kernel
-          make mrproper
-          rm -rf out
+      # 【核心修复2】编译前二次清空输出目录兜底
+      - name: Remove old output folder before build process
+        run: rm -rf $GITHUB_WORKSPACE/device_kernel/out
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
@@ -159,8 +152,6 @@ jobs:
           # 强制清空GCC交叉编译变量，杜绝clang+gcc冲突
           GCC_64: ""
           GCC_32: ""
-          # 新增：强制绕过4.4内核dirty源码检测
-          KBUILD_OUTPUT_CHECK=0
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
