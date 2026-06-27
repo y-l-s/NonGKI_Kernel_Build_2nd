@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # 修复Clang三重号校验：无末尾横杠
+  # Clang triple 无尾杠，修复clang triple校验报错
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
 
@@ -35,10 +35,10 @@ env:
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
-  # KernelSU
+  # KernelSU【本次修复】关闭自动拉取，适配无KSU编译
   KERNELSU_SOURCE : ""
   KERNELSU_BRANCH : ""
-  KERNELSU_AUTO_GET : "true"
+  KERNELSU_AUTO_GET : "false"
   KERNELSU_AUTO_FORK : "resukisu"
   KERNELSU_METHOD: "shell"
 
@@ -103,18 +103,16 @@ jobs:
       - name: ⚙️ Get necessary tools
         uses: ./.github/workflows/build-ready
 
-      # 【第一层彻底清理】git清除所有未跟踪文件 + mrproper内核深度清理
+      # 第一层彻底清理：git清除所有未跟踪文件 + mrproper内核深度清理（修复之前not clean报错）
       - name: Full source clean (fix dirty source error)
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          # 删除所有git未跟踪文件（工具链、缓存、临时文件全部清空）
           git clean -fdx
-          # 官方内核清理
           make mrproper
-          # 强制删除编译输出与自动生成目录
           rm -rf out .config include/config generated arch/*/include/generated
+          rm -rf $GITHUB_WORKSPACE/clang-custom $GITHUB_WORKSPACE/gcc-64 $GITHUB_WORKSPACE/gcc-32
 
-      # 全部补丁流程放在「纯净源码」之后执行
+      # 全部补丁流程放在纯净源码之后执行
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
@@ -135,15 +133,17 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # 生成defconfig并修改NR_CPUS
+      # 【本次核心修复】删除Kconfig中KSU引用，再生成defconfig
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
+          # 移除缺失的kernelsu Kconfig引用，解决can't open file报错
+          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig
           make ARCH=arm64 ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=arm64 olddefconfig
 
-      # 【第二层兜底清理】进入编译脚本前再次清空out
+      # 第二层兜底清理：进入编译脚本前再次清空out
       - name: Double clean output dir before build
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -159,7 +159,6 @@ jobs:
           EXTRA_BUILD_ARGS: "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} ${{ env.EXTRA_CMDS }}"
           GCC_64: ""
           GCC_32: ""
-          # 关键：关闭4.4内核源码干净校验，双重保险
           KBUILD_OUTPUT_CHECK: "0"
 
       - name: 🔩 Pack Process
