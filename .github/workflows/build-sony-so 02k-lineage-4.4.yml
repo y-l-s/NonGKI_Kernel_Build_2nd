@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "so-02k"
   DEFCONFIG_NAME : "so02k_defconfig"
 
-  # Clang triple 无尾杠，修复clang triple校验报错
+  # Clang triple 去除尾杠，修复clang校验报错
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
 
@@ -35,7 +35,7 @@ env:
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
-  # KernelSU【本次修复】关闭自动拉取，适配无KSU编译
+  # KernelSU【关键】关闭自动拉取，彻底禁用KSU相关逻辑
   KERNELSU_SOURCE : ""
   KERNELSU_BRANCH : ""
   KERNELSU_AUTO_GET : "false"
@@ -100,7 +100,7 @@ jobs:
       - name: ⌛️ Compilation environment preparation
         uses: ./.github/workflows/build-env
 
-      - name: ⚙️ Get necessary tools
+      - name: ⚙️ Get necessary tools (clone kernel + anykernel3)
         uses: ./.github/workflows/build-ready
 
       # 第一层彻底清理：git清除所有未跟踪文件 + mrproper内核深度清理（修复之前not clean报错）
@@ -112,7 +112,7 @@ jobs:
           rm -rf out .config include/config generated arch/*/include/generated
           rm -rf $GITHUB_WORKSPACE/clang-custom $GITHUB_WORKSPACE/gcc-64 $GITHUB_WORKSPACE/gcc-32
 
-      # 全部补丁流程放在纯净源码之后执行
+      # SUSFS补丁
       - name: 🪝 Patch Kernel of SUSFS
         uses: ./.github/workflows/patch-susfs
 
@@ -133,11 +133,16 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # 【本次核心修复】删除Kconfig中KSU引用，再生成defconfig
+      # =========【核心修复1】判断：关闭KSU则跳过KSU补丁工作流，避免空curl URL报错 =========
+      - name: Skip KernelSU patch when disabled
+        if: env.KERNELSU_AUTO_GET == 'true'
+        uses: ./.github/workflows/patch-kernelsu
+
+      # =========【核心修复2】提前删除drivers/Kconfig里kernelsu引用，杜绝defconfig找不到文件 =========
       - name: Fix NR_CPUS & Generate .config
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          # 移除缺失的kernelsu Kconfig引用，解决can't open file报错
+          # 移除缺失的kernelsu Kconfig引用
           sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig
           make ARCH=arm64 ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
