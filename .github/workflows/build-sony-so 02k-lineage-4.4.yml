@@ -83,10 +83,10 @@ jobs:
       - name: ⏰ Checkout repository
         uses: actions/checkout@v6
 
-      - name: ⚙️ Compilation environment preparation
+      - name: ⌛️ Compilation environment preparation
         uses: ./.github/workflows/build-env
 
-      - name: 📦 Get necessary tools (clone kernel + anykernel3)
+      - name: ⚙️ Get necessary tools (clone kernel + anykernel3)
         uses: ./.github/workflows/build-ready
 
       # 全局深度清理，解决源码dirty报错
@@ -98,9 +98,11 @@ jobs:
           rm -rf out .config include/config generated arch/*/include/generated
           rm -rf $GITHUB_WORKSPACE/clang-custom $GITHUB_WORKSPACE/gcc-64 $GITHUB_WORKSPACE/gcc-32
 
-      # 关键修复：移除patch-susfs调用，切断内嵌KSU报错脚本
+      # --------------------------
+      # 关键修复：注释掉SUSFS补丁调用，不再加载内置空curl脚本
       # - name: 🪝 Patch Kernel of SUSFS
       #   uses: ./.github/workflows/patch-susfs
+      # --------------------------
 
       - name: 🔗 Patch for no-kprobe
         uses: ./.github/workflows/patch-no-kprobe
