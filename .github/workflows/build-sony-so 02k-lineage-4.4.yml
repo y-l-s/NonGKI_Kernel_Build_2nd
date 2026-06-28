@@ -18,16 +18,16 @@ env:
   CLANG_BRANCH : ""
 
   GCC_GNU : false
-  GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9.git"
+  GCC_64_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9"
   GCC_64_BRANCH : "android12L-release"
-  GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9.git"
+  GCC_32_SOURCE : "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9"
   GCC_32_BRANCH : "android12L-release"
 
   DEFCONFIG_SOURCE: ""
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
-  # 完全关闭KernelSU
+  # 完全关闭KernelSU，不加载任何KSU脚本
   KERNELSU_SOURCE : ""
   KERNELSU_BRANCH : ""
   KERNELSU_AUTO_GET : "false"
@@ -80,17 +80,17 @@ jobs:
     name: Build Kernel
     runs-on: ubuntu-latest
     steps:
-      - name: ⏰ Checkout repository
+      - name: ⏰ Checkout repo
         uses: actions/checkout@v6
 
-      - name: ⌛️ Compilation environment preparation
+      - name: ⚙️ Env init
         uses: ./.github/workflows/build-env
 
-      - name: ⚙️ Get necessary tools (clone kernel + anykernel3)
+      - name: 📦 Pull kernel + AnyKernel3
         uses: ./.github/workflows/build-ready
 
-      # 全局深度清理，解决源码dirty报错
-      - name: Full source clean (fix dirty source error)
+      # 全局深度清理，解决dirty源码报错
+      - name: Full source clean
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
           git clean -fdx
@@ -98,30 +98,29 @@ jobs:
           rm -rf out .config include/config generated arch/*/include/generated
           rm -rf $GITHUB_WORKSPACE/clang-custom $GITHUB_WORKSPACE/gcc-64 $GITHUB_WORKSPACE/gcc-32
 
-      # --------------------------
+      # ======================
       # 关键修复：注释掉SUSFS补丁调用，不再加载内置空curl脚本
-      # - name: 🪝 Patch Kernel of SUSFS
+      # - name: 🪝 SUSFS Patch
       #   uses: ./.github/workflows/patch-susfs
-      # --------------------------
+      # ======================
 
-      - name: 🔗 Patch for no-kprobe
+      - name: 🔗 No-kprobe patch
         uses: ./.github/workflows/patch-no-kprobe
 
-      - name: 🛠️ Extra Kernel Options
-        run: |
-          cd $GITHUB_WORKSPACE/device_kernel
+      - name: 🛠️ Extra kernel opts
+        run: cd $GITHUB_WORKSPACE/device_kernel
 
-      - name: 🧰 Patch Kernel of Re:Kernel
+      - name: 🧰 ReKernel patch
         uses: ./.github/workflows/patch-rekernel
 
-      - name: 💿 Patch Kernel of Droidspaces
+      - name: 💿 Droidspaces patch
         uses: ./.github/workflows/patch-droidspaces
 
-      - name: 🔒 Patch Kernel of Baseband Guard
+      - name: 🔒 Baseband guard patch
         uses: ./.github/workflows/patch-baseband-guard
 
-      # 提前删除Kconfig内kernelsu引用，规避defconfig文件缺失
-      - name: Fix NR_CPUS & Generate .config
+      # 提前删除Kconfig内kernelsu引用，规避defconfig文件缺失报错
+      - name: Generate defconfig + set NR_CPUS=16
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
           sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig
@@ -130,14 +129,14 @@ jobs:
           make ARCH=arm64 olddefconfig
 
       # 编译前二次清理输出目录
-      - name: Double clean output dir before build
+      - name: Pre-build clean output
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
           make mrproper
           rm -rf out
 
       # 内核编译，关闭dirty校验、清空GCC交叉变量
-      - name: 🚀 Build Process
+      - name: 🚀 Build kernel
         uses: ./.github/workflows/build-process
         env:
           CLANG_TARGET_TRIPLE: ${{ env.CLANG_TARGET_TRIPLE }}
@@ -147,8 +146,8 @@ jobs:
           GCC_32: ""
           KBUILD_OUTPUT_CHECK: "0"
 
-      - name: 🔩 Pack Process
+      - name: 🔩 AnyKernel3 pack
         uses: ./.github/workflows/pack-process
 
-      - name: ✏️ Upload Artifacts
+      - name: ✏️ Upload zip artifact
         uses: ./.github/workflows/upload-artifacts
