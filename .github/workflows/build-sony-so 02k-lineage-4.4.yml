@@ -133,9 +133,7 @@ jobs:
       - name: 🔒 Patch Kernel of Baseband Guard
         uses: ./.github/workflows/patch-baseband-guard
 
-      # ======================
-      # 关键修复：彻底移除patch-kernelsu调用步骤，不再执行错误curl脚本
-      # ======================
+      # 关键修复：完全移除patch-kernelsu调用步骤，不再执行错误curl脚本
 
       # 提前删除drivers/Kconfig里kernelsu引用，杜绝defconfig找不到文件报错
       - name: Fix NR_CPUS & Generate .config
