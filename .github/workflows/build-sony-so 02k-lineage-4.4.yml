@@ -11,13 +11,13 @@ env:
   DEFCONFIG_NAME: "so02k_defconfig"
   ARCH: arm64
 
-  # Clang 14.0.6 兼容老旧4.4内核，修正官方压缩包后缀为tar.gz，关闭LLVM_IAS
+  # Clang 14.0.6 兼容老旧4.4内核，关闭LLVM_IAS
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
-  # 修复引号嵌套错误，移除LLVM_IAS=1（4.4内核不兼容），修正CFLAGS引号
-  EXTRA_CMDS: "LD=ld.lld LLVM=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-array-bounds' -j$(nproc)"
-  # 关键修复：官方llvm14.0.6 Linux x64 后缀是tar.gz，不是tar.xz
-  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-X64.tar.gz"
+  # 修复引号嵌套，补充CROSS_COMPILE适配msm8998 4.4
+  EXTRA_CMDS: LD=ld.lld LLVM=1 CROSS_COMPILE=aarch64-linux-android- ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS=-Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-array-bounds -j$(nproc)
+  # 修复大小写，根治gzip解压报错
+  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-x86_64.tar.gz"
   CLANG_BRANCH: ""
 
   # 内核源码
@@ -104,7 +104,7 @@ jobs:
       - name: 📦 Pull Kernel Source & AnyKernel3
         uses: ./.github/workflows/build-ready
 
-      # 全局深度源码清理，解决dirty编译报错
+      # 全局深度源码清理，解决dirty编译报错（仅保留一次，删除重复mrproper步骤）
       - name: 🧹 Full Source Deep Clean
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -138,13 +138,6 @@ jobs:
           make ARCH=${{ env.ARCH }} ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=${{ env.ARCH }} olddefconfig
-
-      # 编译前清理输出目录
-      - name: 🧹 Pre-build Output Clean
-        run: |
-          cd $GITHUB_WORKSPACE/device_kernel
-          make mrproper
-          rm -rf out
 
       # 内核编译，纯Clang LLVM环境
       - name: 🚀 Start Kernel Compile
