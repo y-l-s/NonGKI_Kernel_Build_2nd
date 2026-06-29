@@ -7,8 +7,8 @@ on:
 env:
   DEVICE_NAME: "sony_xz1c"
   DEVICE_CODENAME: "so-02k"
-  # 若ls看不到so02k_defconfig，改成 sony_xz1c_defconfig
-  DEFCONFIG_NAME: "so02k_defconfig"
+  # 修正：内核里真实存在的defconfig文件名
+  DEFCONFIG_NAME: "sony_xz1c_defconfig"
   ARCH: arm64
 
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
@@ -49,8 +49,8 @@ jobs:
       - name: ⏰ Checkout Workflow Repository
         uses: actions/checkout@v6
 
-      # 系统预装Clang14，彻底解决gzip解压报错
-      - name: Install Clang 14 & Build Dependencies
+      # 系统预装Clang14，彻底消除gzip解压报错
+      - name: Install Clang 14 & Build Deps
         run: |
           sudo apt update -y
           sudo apt install -y clang-14 lld-14 llvm-14 git ccache make zip gcc-aarch64-linux-gnu
@@ -58,13 +58,13 @@ jobs:
           sudo ln -sf /usr/bin/clang++-14 /usr/bin/clang++
           sudo ln -sf /usr/bin/ld.lld-14 /usr/bin/ld.lld
 
-      # 拉取内核与AnyKernel3源码
+      # 拉取源码
       - name: Clone Kernel & AnyKernel3
         run: |
           git clone -b $KERNEL_BRANCH $KERNEL_SOURCE $GITHUB_WORKSPACE/device_kernel
           git clone -b $AK3_BRANCH $AK3_SOURCE $GITHUB_WORKSPACE/anykernel3
 
-      # 源码清理
+      # 源码深度清理
       - name: 🧹 Full Source Deep Clean
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -72,25 +72,25 @@ jobs:
           make mrproper
           rm -rf out .config include/config generated arch/*/include/generated
 
-      # 调试：查看defconfig列表与Kconfig内容
-      - name: Check defconfig existence
+      # 调试：打印所有可用defconfig
+      - name: Debug available defconfig
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          echo "==== Available defconfigs ===="
-          ls arch/arm64/configs/
-          echo "==== drivers/Kconfig ===="
-          cat drivers/Kconfig
+          echo "All defconfig files:"
+          ls arch/arm64/configs | grep defconfig
 
-      # 生成配置：注释KSU配置，不删除行防止语法报错
+      # 生成配置，注释KSU配置而非删除行
       - name: ⚙️ Generate Defconfig & Modify CPU Count
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          sed -i 's|source "drivers/kernelsu/Kconfig"|# source "drivers/kernelsu/Kconfig"|' drivers/Kconfig
+          # 注释KSU Kconfig导入，不删除行，避免Kconfig语法报错
+          sed -i '/source "drivers\/kernelsu\/Kconfig"/s/^/#/' drivers/Kconfig
+          # 使用正确存在的sony_xz1c_defconfig
           make ARCH=${{ env.ARCH }} ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=${{ env.ARCH }} olddefconfig
 
-      # 内核编译
+      # 编译内核
       - name: 🚀 Build Kernel Image
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -104,9 +104,9 @@ jobs:
           cd $GITHUB_WORKSPACE/anykernel3
           zip -r SO02K-Kernel.zip . -x ".git*"
 
-      # 官方上传artifact，修复找不到本地action报错
+      # 官方artifact上传，解决找不到本地action报错
       - name: Upload Kernel Zip
         uses: actions/upload-artifact@v4
         with:
-          name: SO-02K-Kernel-Flashable
+          name: SO-02K-Flash-Kernel
           path: $GITHUB_WORKSPACE/anykernel3/SO02K-Kernel.zip
