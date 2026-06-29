@@ -5,63 +5,52 @@ on:
   workflow_dispatch:
 
 env:
-  # 设备基础信息
   DEVICE_NAME: "sony_xz1c"
   DEVICE_CODENAME: "so-02k"
   DEFCONFIG_NAME: "so02k_defconfig"
   ARCH: arm64
 
-  # 本地系统clang，无需远程下载
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
   EXTRA_CMDS: LD=ld.lld LLVM=1 CROSS_COMPILE=aarch64-linux-android- ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS=-Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-array-bounds -j$(nproc)
-  # 清空，不再下载外部clang包
   CLANG_SOURCE: ""
   CLANG_BRANCH: ""
 
-  # 内核源码
   KERNEL_SOURCE: "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
   KERNEL_BRANCH: "lineage-17.1"
 
-  # GCC 完全禁用
   GCC_GNU: false
   GCC_64_SOURCE: ""
   GCC_64_BRANCH: ""
   GCC_32_SOURCE: ""
   GCC_32_BRANCH: ""
 
-  # Defconfig 自定义（未启用）
   DEFCONFIG_SOURCE: ""
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
-  # 彻底锁死KSU，规避curl空URL报错
   KERNELSU_SOURCE: ""
   KERNELSU_BRANCH: ""
   KERNELSU_AUTO_GET: "false"
   KERNELSU_AUTO_FORK: ""
   KERNELSU_METHOD: "none"
 
-  # SUSFS 全局关闭
   SUSFS_ENABLE: false
   SUSFS_FIXED: false
   SUSFS_FOLDER_FIXED: ""
   SUSFS_PATCH_FIXED: ""
 
-  # AnyKernel3打包
   AK3_SOURCE: "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH: "master"
   PACK_METHOD: "Anykernel3"
   PACK_KMODULES: "false"
 
-  # DTBO/Boot镜像
   BOOT_SOURCE: ""
   NEED_DTBO: false
   NEED_SAFE_DTBO: false
   ROM_TEXT: "rom_android"
   PYTHON_VERSION: "3"
 
-  # 补丁开关
   PATCHES_SOURCE: ""
   PATCHES_BRANCH: ""
   REKERNEL_ENABLE: "true"
@@ -75,7 +64,6 @@ env:
   BASEBAND_GUARD_ENABLE: "false"
   BASEBAND_GUARD_BOOT: "false"
 
-  # 编译附加参数
   GENERATE_DTB: "false"
   GENERATE_CHIP: "qcom"
   BUILD_DEBUGGER: "false"
@@ -84,7 +72,6 @@ env:
   MERGE_CONFIG_FILES: "vendor/debugfs.config,vendor/lahaina_QGKI.config"
   FREE_MORE_SPACE: "false"
 
-  # CCache缓存优化
   CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
   CCACHE_NOHASHDIR: "true"
   CCACHE_HARDLINK: "true"
@@ -97,49 +84,30 @@ jobs:
       - name: ⏰ Checkout Workflow Repository
         uses: actions/checkout@v6
 
-      # 新增一步：预装Ubuntu官方clang14，彻底取消远程下载压缩包
-      - name: Install System Clang 14
+      # 本地安装Clang14，彻底消除下载压缩包gzip报错
+      - name: Install Clang 14
         run: |
-          sudo apt update
-          sudo apt install -y clang-14 lld-14 llvm-14
-          # 软链接统一命令名，适配内核编译脚本
+          sudo apt update -y
+          sudo apt install -y clang-14 lld-14 llvm-14 git ccache make gcc-aarch64-linux-gnu
           sudo ln -sf /usr/bin/clang-14 /usr/bin/clang
           sudo ln -sf /usr/bin/clang++-14 /usr/bin/clang++
           sudo ln -sf /usr/bin/ld.lld-14 /usr/bin/ld.lld
 
-      - name: ⚙️ Initialize Build Environment
-        uses: ./.github/workflows/build-env
+      # 拉取内核源码 & AnyKernel3
+      - name: Clone Kernel & AnyKernel3
+        run: |
+          git clone -b $KERNEL_BRANCH $KERNEL_SOURCE $GITHUB_WORKSPACE/device_kernel
+          git clone -b $AK3_BRANCH $AK3_SOURCE $GITHUB_WORKSPACE/anykernel3
 
-      - name: 📦 Pull Kernel Source & AnyKernel3
-        uses: ./.github/workflows/build-ready
-
-      # 全局深度源码清理，仅一次mrproper
+      # 源码深度清理
       - name: 🧹 Full Source Deep Clean
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
           git clean -fdx
           make mrproper
           rm -rf out .config include/config generated arch/*/include/generated
-          rm -rf $GITHUB_WORKSPACE/clang-custom $GITHUB_WORKSPACE/gcc-64 $GITHUB_WORKSPACE/gcc-32
 
-      # SUSFS已关闭，注释补丁步骤
-      # - name: 🪝 SUSFS Patch
-      #   uses: ./.github/workflows/patch-susfs
-
-      - name: 🔗 Apply No-kprobe Patch
-        uses: ./.github/workflows/patch-no-kprobe
-
-      - name: 🧰 Apply ReKernel Patch
-        if: env.REKERNEL_ENABLE == 'true'
-        uses: ./.github/workflows/patch-rekernel
-
-      # DroidSpaces/BasebandGuard关闭，跳过执行
-      # - name: 💿 Droidspaces patch
-      #   uses: ./.github/workflows/patch-droidspaces
-      # - name: 🔒 Baseband guard patch
-      #   uses: ./.github/workflows/patch-baseband-guard
-
-      # 预生成defconfig，移除KSU Kconfig引用
+      # 移除KSU引用
       - name: ⚙️ Generate Defconfig & Modify CPU Count
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -148,21 +116,23 @@ jobs:
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=${{ env.ARCH }} olddefconfig
 
-      # 内核编译，纯Clang LLVM环境
-      - name: 🚀 Start Kernel Compile
-        uses: ./.github/workflows/build-process
-        env:
-          CLANG_TARGET_TRIPLE: ${{ env.CLANG_TARGET_TRIPLE }}
-          CLANG_TRIPLE: ${{ env.CLANG_TRIPLE }}
-          EXTRA_BUILD_ARGS: "CLANG_TARGET_TRIPLE=${{ env.CLANG_TARGET_TRIPLE }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} ${{ env.EXTRA_CMDS }}"
-          GCC_64: ""
-          GCC_32: ""
-          KBUILD_OUTPUT_CHECK: "0"
+      # 内核编译
+      - name: 🚀 Build Kernel Image
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          export ${{ env.EXTRA_CMDS }}
+          make -j$(nproc)
 
-      # AnyKernel3打包刷机包
-      - name: 🔩 Package Kernel With AnyKernel3
-        uses: ./.github/workflows/pack-process
+      # AnyKernel3打包
+      - name: Pack AnyKernel3 Zip
+        run: |
+          cp $GITHUB_WORKSPACE/device_kernel/out/arch/arm64/boot/Image.gz-dtb $GITHUB_WORKSPACE/anykernel3/
+          cd $GITHUB_WORKSPACE/anykernel3
+          zip -r kernel-so02k.zip . -x ".git*"
 
-      # 上传产物
-      - name: ✏️ Upload Flashable Zip Artifact
-        uses: ./.github/workflows/upload-artifacts
+      # 上传刷机包
+      - name: Upload Kernel Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: SO-02K-Kernel
+          path: $GITHUB_WORKSPACE/anykernel3/kernel-so02k.zip
