@@ -14,10 +14,9 @@ env:
   # Clang 14.0.6 兼容老旧4.4内核，关闭LLVM_IAS
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
-  # 修复引号嵌套，补充CROSS_COMPILE适配msm8998 4.4
   EXTRA_CMDS: LD=ld.lld LLVM=1 CROSS_COMPILE=aarch64-linux-android- ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS=-Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-array-bounds -j$(nproc)
-  # 修复大小写，根治gzip解压报错
-  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-x86_64.tar.gz"
+  # 增加ghproxy代理，解决官方源下载404返回html导致gzip报错
+  CLANG_SOURCE: "https://mirror.ghproxy.com/https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-x86_64.tar.gz"
   CLANG_BRANCH: ""
 
   # 内核源码
@@ -50,7 +49,7 @@ env:
   SUSFS_PATCH_FIXED: ""
 
   # AnyKernel3打包
-  AK3_SOURCE: "https://github.com/osm0sis/AnyKernel3.git"
+  AK3_SOURCE: "https://mirror.ghproxy.com/https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH: "master"
   PACK_METHOD: "Anykernel3"
   PACK_KMODULES: "false"
@@ -72,7 +71,7 @@ env:
   KPM_ENABLE: "false"
   KPM_INLINE: "false"
   KPM_KPATCH_NEXT: "false"
-  KPM_PATCH_SOURCE: "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux"
+  KPM_PATCH_SOURCE: "https://mirror.ghproxy.com/https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux"
   BASEBAND_GUARD_ENABLE: "false"
   BASEBAND_GUARD_BOOT: "false"
 
@@ -104,7 +103,7 @@ jobs:
       - name: 📦 Pull Kernel Source & AnyKernel3
         uses: ./.github/workflows/build-ready
 
-      # 全局深度源码清理，解决dirty编译报错（仅保留一次，删除重复mrproper步骤）
+      # 全局深度源码清理，仅一次mrproper，不再二次清空.config
       - name: 🧹 Full Source Deep Clean
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
