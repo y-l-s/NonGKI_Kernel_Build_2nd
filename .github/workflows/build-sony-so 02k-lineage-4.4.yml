@@ -11,11 +11,12 @@ env:
   DEFCONFIG_NAME: "so02k_defconfig"
   ARCH: arm64
 
+  # 本地系统clang，无需远程下载
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
   EXTRA_CMDS: LD=ld.lld LLVM=1 CROSS_COMPILE=aarch64-linux-android- ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS=-Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-array-bounds -j$(nproc)
-  # 替换为稳定第三方Clang14，放弃llvm官方源
-  CLANG_SOURCE: "https://github.com/kdrag0n/proton-clang/releases/download/14.0.6/proton-clang-14.0.6-linux-x86_64.tar.gz"
+  # 清空，不再下载外部clang包
+  CLANG_SOURCE: ""
   CLANG_BRANCH: ""
 
   # 内核源码
@@ -96,13 +97,23 @@ jobs:
       - name: ⏰ Checkout Workflow Repository
         uses: actions/checkout@v6
 
+      # 新增一步：预装Ubuntu官方clang14，彻底取消远程下载压缩包
+      - name: Install System Clang 14
+        run: |
+          sudo apt update
+          sudo apt install -y clang-14 lld-14 llvm-14
+          # 软链接统一命令名，适配内核编译脚本
+          sudo ln -sf /usr/bin/clang-14 /usr/bin/clang
+          sudo ln -sf /usr/bin/clang++-14 /usr/bin/clang++
+          sudo ln -sf /usr/bin/ld.lld-14 /usr/bin/ld.lld
+
       - name: ⚙️ Initialize Build Environment
         uses: ./.github/workflows/build-env
 
       - name: 📦 Pull Kernel Source & AnyKernel3
         uses: ./.github/workflows/build-ready
 
-      # 全局深度源码清理，仅一次mrproper，不删除生成后的.config
+      # 全局深度源码清理，仅一次mrproper
       - name: 🧹 Full Source Deep Clean
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
