@@ -15,8 +15,8 @@ env:
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
   EXTRA_CMDS: LD=ld.lld LLVM=1 CROSS_COMPILE=aarch64-linux-android- ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS=-Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-array-bounds -j$(nproc)
-  # 增加ghproxy代理，解决官方源下载404返回html导致gzip报错
-  CLANG_SOURCE: "https://mirror.ghproxy.com/https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-x86_64.tar.gz"
+  # 移除ghproxy代理，使用原生官方链接，修复域名解析失败
+  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-x86_64.tar.gz"
   CLANG_BRANCH: ""
 
   # 内核源码
@@ -48,8 +48,8 @@ env:
   SUSFS_FOLDER_FIXED: ""
   SUSFS_PATCH_FIXED: ""
 
-  # AnyKernel3打包
-  AK3_SOURCE: "https://mirror.ghproxy.com/https://github.com/osm0sis/AnyKernel3.git"
+  # AnyKernel3打包（移除ghproxy）
+  AK3_SOURCE: "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH: "master"
   PACK_METHOD: "Anykernel3"
   PACK_KMODULES: "false"
@@ -61,7 +61,7 @@ env:
   ROM_TEXT: "rom_android"
   PYTHON_VERSION: "3"
 
-  # 补丁开关
+  # 补丁开关（移除ghproxy）
   PATCHES_SOURCE: ""
   PATCHES_BRANCH: ""
   REKERNEL_ENABLE: "true"
@@ -71,7 +71,7 @@ env:
   KPM_ENABLE: "false"
   KPM_INLINE: "false"
   KPM_KPATCH_NEXT: "false"
-  KPM_PATCH_SOURCE: "https://mirror.ghproxy.com/https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux"
+  KPM_PATCH_SOURCE: "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux"
   BASEBAND_GUARD_ENABLE: "false"
   BASEBAND_GUARD_BOOT: "false"
 
