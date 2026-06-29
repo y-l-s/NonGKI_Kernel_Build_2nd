@@ -7,6 +7,7 @@ on:
 env:
   DEVICE_NAME: "sony_xz1c"
   DEVICE_CODENAME: "so-02k"
+  # 若ls看不到so02k_defconfig，改成 sony_xz1c_defconfig
   DEFCONFIG_NAME: "so02k_defconfig"
   ARCH: arm64
 
@@ -25,54 +26,18 @@ env:
   GCC_32_SOURCE: ""
   GCC_32_BRANCH: ""
 
-  DEFCONFIG_SOURCE: ""
-  DEFCONFIG_ORIGIN_IMAGE: ""
-  DEFCONFIG_FROM_BOOT: false
-
   KERNELSU_SOURCE: ""
   KERNELSU_BRANCH: ""
   KERNELSU_AUTO_GET: "false"
-  KERNELSU_AUTO_FORK: ""
   KERNELSU_METHOD: "none"
-
   SUSFS_ENABLE: false
-  SUSFS_FIXED: false
-  SUSFS_FOLDER_FIXED: ""
-  SUSFS_PATCH_FIXED: ""
-
   AK3_SOURCE: "https://github.com/osm0sis/AnyKernel3.git"
   AK3_BRANCH: "master"
   PACK_METHOD: "Anykernel3"
   PACK_KMODULES: "false"
-
-  BOOT_SOURCE: ""
-  NEED_DTBO: false
-  NEED_SAFE_DTBO: false
-  ROM_TEXT: "rom_android"
   PYTHON_VERSION: "3"
-
-  PATCHES_SOURCE: ""
-  PATCHES_BRANCH: ""
   REKERNEL_ENABLE: "true"
-  DROIDSPACES_ENABLE: "false"
   HOOK_METHOD: "syscall"
-  KERNEL_PATCH: "false"
-  KPM_ENABLE: "false"
-  KPM_INLINE: "false"
-  KPM_KPATCH_NEXT: "false"
-  KPM_PATCH_SOURCE: "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU_patch/refs/heads/main/kpm/patch_linux"
-  BASEBAND_GUARD_ENABLE: "false"
-  BASEBAND_GUARD_BOOT: "false"
-
-  GENERATE_DTB: "false"
-  GENERATE_CHIP: "qcom"
-  BUILD_DEBUGGER: "false"
-  SKIP_PATCH: "false"
-  BUILD_OTHER_CONFIG: "false"
-  MERGE_CONFIG_FILES: "vendor/debugfs.config,vendor/lahaina_QGKI.config"
-  FREE_MORE_SPACE: "false"
-
-  CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
   CCACHE_NOHASHDIR: "true"
   CCACHE_HARDLINK: "true"
 
@@ -84,22 +49,22 @@ jobs:
       - name: ⏰ Checkout Workflow Repository
         uses: actions/checkout@v6
 
-      # 本地安装Clang14，彻底消除下载压缩包gzip报错
-      - name: Install Clang 14
+      # 系统预装Clang14，彻底解决gzip解压报错
+      - name: Install Clang 14 & Build Dependencies
         run: |
           sudo apt update -y
-          sudo apt install -y clang-14 lld-14 llvm-14 git ccache make gcc-aarch64-linux-gnu
+          sudo apt install -y clang-14 lld-14 llvm-14 git ccache make zip gcc-aarch64-linux-gnu
           sudo ln -sf /usr/bin/clang-14 /usr/bin/clang
           sudo ln -sf /usr/bin/clang++-14 /usr/bin/clang++
           sudo ln -sf /usr/bin/ld.lld-14 /usr/bin/ld.lld
 
-      # 拉取内核源码 & AnyKernel3
+      # 拉取内核与AnyKernel3源码
       - name: Clone Kernel & AnyKernel3
         run: |
           git clone -b $KERNEL_BRANCH $KERNEL_SOURCE $GITHUB_WORKSPACE/device_kernel
           git clone -b $AK3_BRANCH $AK3_SOURCE $GITHUB_WORKSPACE/anykernel3
 
-      # 源码深度清理
+      # 源码清理
       - name: 🧹 Full Source Deep Clean
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
@@ -107,11 +72,20 @@ jobs:
           make mrproper
           rm -rf out .config include/config generated arch/*/include/generated
 
-      # 移除KSU引用
+      # 调试：查看defconfig列表与Kconfig内容
+      - name: Check defconfig existence
+        run: |
+          cd $GITHUB_WORKSPACE/device_kernel
+          echo "==== Available defconfigs ===="
+          ls arch/arm64/configs/
+          echo "==== drivers/Kconfig ===="
+          cat drivers/Kconfig
+
+      # 生成配置：注释KSU配置，不删除行防止语法报错
       - name: ⚙️ Generate Defconfig & Modify CPU Count
         run: |
           cd $GITHUB_WORKSPACE/device_kernel
-          sed -i '/source "drivers\/kernelsu\/Kconfig"/d' drivers/Kconfig
+          sed -i 's|source "drivers/kernelsu/Kconfig"|# source "drivers/kernelsu/Kconfig"|' drivers/Kconfig
           make ARCH=${{ env.ARCH }} ${{ env.DEFCONFIG_NAME }}
           sed -i 's/CONFIG_NR_CPUS=.*/CONFIG_NR_CPUS=16/' .config
           make ARCH=${{ env.ARCH }} olddefconfig
@@ -123,16 +97,16 @@ jobs:
           export ${{ env.EXTRA_CMDS }}
           make -j$(nproc)
 
-      # AnyKernel3打包
-      - name: Pack AnyKernel3 Zip
+      # AnyKernel3打包刷机包
+      - name: Pack Flashable Zip
         run: |
           cp $GITHUB_WORKSPACE/device_kernel/out/arch/arm64/boot/Image.gz-dtb $GITHUB_WORKSPACE/anykernel3/
           cd $GITHUB_WORKSPACE/anykernel3
-          zip -r kernel-so02k.zip . -x ".git*"
+          zip -r SO02K-Kernel.zip . -x ".git*"
 
-      # 上传刷机包
+      # 官方上传artifact，修复找不到本地action报错
       - name: Upload Kernel Zip
         uses: actions/upload-artifact@v4
         with:
-          name: SO-02K-Kernel
-          path: $GITHUB_WORKSPACE/anykernel3/kernel-so02k.zip
+          name: SO-02K-Kernel-Flashable
+          path: $GITHUB_WORKSPACE/anykernel3/SO02K-Kernel.zip
