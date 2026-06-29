@@ -11,18 +11,16 @@ env:
   DEFCONFIG_NAME: "so02k_defconfig"
   ARCH: arm64
 
-  # Clang 纯LLVM编译
+  # Clang 改用14.0.6 兼容4.4老旧内核
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
-  EXTRA_CMDS: "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter' -j$(nproc)"
+  EXTRA_CMDS: "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter' -Wno-array-bounds' -j$(nproc)"
+  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-X64.tar.xz"
+  CLANG_BRANCH: ""
 
   # 内核源码
   KERNEL_SOURCE: "https://github.com/whatawurst/android_kernel_sony_msm8998.git"
   KERNEL_BRANCH: "lineage-17.1"
-
-  # Clang工具链
-  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-Linux-X64.tar.xz"
-  CLANG_BRANCH: ""
 
   # GCC 完全禁用
   GCC_GNU: false
@@ -36,12 +34,12 @@ env:
   DEFCONFIG_ORIGIN_IMAGE: ""
   DEFCONFIG_FROM_BOOT: false
 
-  # ==========彻底锁死KSU所有变量，阻断内部curl空地址==========
+  # 彻底锁死KSU，规避curl空URL报错
   KERNELSU_SOURCE: ""
   KERNELSU_BRANCH: ""
   KERNELSU_AUTO_GET: "false"
   KERNELSU_AUTO_FORK: ""
-  KERNELSU_METHOD: "none" # 修改为none，让脚本识别不执行KSU逻辑
+  KERNELSU_METHOD: "none"
 
   # SUSFS 全局关闭
   SUSFS_ENABLE: false
