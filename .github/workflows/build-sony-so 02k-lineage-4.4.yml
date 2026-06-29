@@ -11,11 +11,13 @@ env:
   DEFCONFIG_NAME: "so02k_defconfig"
   ARCH: arm64
 
-  # Clang 改用14.0.6 兼容4.4老旧内核
+  # Clang 14.0.6 兼容老旧4.4内核，修正官方压缩包后缀为tar.gz，关闭LLVM_IAS
   CLANG_TARGET_TRIPLE: "aarch64-linux-android"
   CLANG_TRIPLE: "aarch64-linux-android"
-  EXTRA_CMDS: "LD=ld.lld LLVM=1 LLVM_IAS=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter' -Wno-array-bounds' -j$(nproc)"
-  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-X64.tar.xz"
+  # 修复引号嵌套错误，移除LLVM_IAS=1（4.4内核不兼容），修正CFLAGS引号
+  EXTRA_CMDS: "LD=ld.lld LLVM=1 ARCH=arm64 SUBARCH=arm64 KBUILD_CFLAGS='-Wno-incompatible-pointer-types -Wno-unused-parameter -Wno-array-bounds' -j$(nproc)"
+  # 关键修复：官方llvm14.0.6 Linux x64 后缀是tar.gz，不是tar.xz
+  CLANG_SOURCE: "https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.6/LLVM-14.0.6-Linux-X64.tar.gz"
   CLANG_BRANCH: ""
 
   # 内核源码
